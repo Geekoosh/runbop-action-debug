@@ -3,7 +3,30 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 
-async function run(): Promise<void> {
+function createTimeoutPromise(timeoutSeconds: number): Promise<'timeout'> {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve('timeout'), timeoutSeconds * 1000)
+  })
+}
+
+function promisifyWatch(
+  debugSignalDir: string,
+  debugSignalFile: string,
+  debugSignalPath: string
+): Promise<'next'> {
+  return new Promise((resolve) => {
+    const watcher = fs.watch(debugSignalDir, (eventType, filename) => {
+      if (filename === debugSignalFile) {
+        if (fs.existsSync(debugSignalPath)) {
+          watcher.close()
+          resolve('next')
+        }
+      }
+    })
+  })
+}
+
+export async function run(): Promise<void> {
   try {
     // Check for DEBUGGABLE_RUNNER environment variable
     if (!process.env.DEBUGGABLE_RUNNER) {
@@ -26,55 +49,42 @@ async function run(): Promise<void> {
     )
     core.info(`Debug signal file path: ${debugSignalPath}`)
 
-    let timeoutHandle: NodeJS.Timeout | undefined
     let completionReason = 'next' // Default reason
 
-    try {
-      await new Promise<void>((resolve, reject) => {
-        // Set timeout if specified
-        if (timeout > 0) {
-          timeoutHandle = setTimeout(() => {
-            completionReason = 'timeout'
-            resolve()
-          }, timeout * 1000)
+    // Create promises for both timeout and file watch
+    const promises: Promise<'timeout' | 'next'>[] = [
+      promisifyWatch(debugSignalDir, debugSignalFile, debugSignalPath)
+    ]
+
+    if (timeout > 0) {
+      promises.push(createTimeoutPromise(timeout))
+    }
+
+    // Wait for either timeout or signal
+    const result = await Promise.race(promises)
+    completionReason = result
+
+    // Read and process debug signal file if it exists
+    if (result === 'next' && fs.existsSync(debugSignalPath)) {
+      const content = fs.readFileSync(debugSignalPath, 'utf8')
+      const lines = content.split('\n')
+
+      for (const line of lines) {
+        if (line.trim() === 'fail') {
+          completionReason = 'failed'
+          throw new Error('Debug signal requested workflow failure')
         }
-
-        // Watch for debug signal file
-        const watcher = fs.watch(debugSignalDir, (eventType, filename) => {
-          if (filename === debugSignalFile && eventType === 'rename') {
-            if (fs.existsSync(debugSignalPath)) {
-              watcher.close()
-              if (timeoutHandle) clearTimeout(timeoutHandle)
-              resolve()
-            }
-          }
-        })
-      })
-
-      // Read and process debug signal file if it exists
-      if (fs.existsSync(debugSignalPath)) {
-        const content = fs.readFileSync(debugSignalPath, 'utf8')
-        const lines = content.split('\n')
-
-        for (const line of lines) {
-          if (line.trim() === 'fail') {
-            completionReason = 'failed'
-            throw new Error('Debug signal requested workflow failure')
-          }
-          if (line.startsWith('env=')) {
-            const [_, envStr] = line.split('=', 2)
-            const [key, value] = envStr.split('=', 2)
-            if (key && value) {
-              core.exportVariable(key, value)
-            }
+        if (line.startsWith('env=')) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const [_, key, value] = line.split('=', 3)
+          if (key && value) {
+            core.exportVariable(key, value)
           }
         }
-
-        // Remove the signal file
-        fs.unlinkSync(debugSignalPath)
       }
-    } finally {
-      if (timeoutHandle) clearTimeout(timeoutHandle)
+
+      // Remove the signal file
+      fs.unlinkSync(debugSignalPath)
     }
 
     // Set the output reason
@@ -87,4 +97,7 @@ async function run(): Promise<void> {
   }
 }
 
-run()
+// Only run if this is the main module (not imported)
+if (require.main === module) {
+  run()
+}

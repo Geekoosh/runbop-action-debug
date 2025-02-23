@@ -4,6 +4,8 @@ on: [push]
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       DEBUGGABLE_RUNNER: true
       SIGNAL_PATH: /tmp/debug_signal_test_custom
@@ -11,10 +13,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
       - name: Build
-        run: |
-          npm ci
-          npm run build
+        run: npm run build
 
       # Test 1: Timeout scenario
       - name: Test timeout
