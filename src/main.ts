@@ -96,8 +96,3 @@ export async function run(): Promise<void> {
     }
   }
 }
-
-// Only run if this is the main module (not imported)
-if (require.main === module) {
-  run()
-}
