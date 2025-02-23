@@ -5,41 +5,19 @@ import * as os from 'os'
 
 function createTimeoutPromise(timeoutSeconds: number): Promise<'timeout'> {
   return new Promise((resolve) => {
-    setTimeout(() => {
-      core.info(`Timeout reached after ${timeoutSeconds} seconds`)
-      resolve('timeout')
-    }, timeoutSeconds * 1000)
-  })
-}
-
-function promisifyWatch(
-  debugSignalDir: string,
-  debugSignalFile: string,
-  debugSignalPath: string
-): Promise<'next'> {
-  return new Promise((resolve) => {
-    const watcher = fs.watch(debugSignalDir, (eventType, filename) => {
-      core.info(`File event: ${eventType}, filename: ${filename}`)
-      if (filename === debugSignalFile) {
-        if (fs.existsSync(debugSignalPath)) {
-          watcher.close()
-          resolve('next')
-        }
-      }
-    })
+    setTimeout(() => resolve('timeout'), timeoutSeconds * 1000)
   })
 }
 
 export async function run(): Promise<void> {
+  let watcher: fs.FSWatcher | undefined
   try {
-    // Check for DEBUGGABLE_RUNNER environment variable
     if (!process.env.DEBUGGABLE_RUNNER) {
       throw new Error(
         'This action requires DEBUGGABLE_RUNNER environment variable to be set'
       )
     }
 
-    // Get inputs
     const timeout = parseInt(core.getInput('timeout') || '0')
     const customSignalPath = core.getInput('signal-path')
     const debugSignalPath =
@@ -47,30 +25,34 @@ export async function run(): Promise<void> {
     const debugSignalDir = path.dirname(debugSignalPath)
     const debugSignalFile = path.basename(debugSignalPath)
 
-    // Print instructions
     core.info(
       `To continue, run "gha-debug-continue [--fail] [--env KEY=VAL ...]" on this runner.`
     )
     core.info(`Debug signal file path: ${debugSignalPath}`)
 
-    let completionReason = 'next' // Default reason
+    let completionReason = 'next'
 
-    // Create promises for both timeout and file watch
-    const promises: Promise<'timeout' | 'next'>[] = [
-      promisifyWatch(debugSignalDir, debugSignalFile, debugSignalPath)
-    ]
+    let resolve
+    const watchPromise = new Promise<'next'>((resolveFn) => {
+      resolve = resolveFn
+    })
+
+    watcher = fs.watch(debugSignalDir, (eventType, filename) => {
+      if (filename === debugSignalFile) {
+        if (fs.existsSync(debugSignalPath)) {
+          resolve!('next')
+        }
+      }
+    })
+    const promises: Promise<'timeout' | 'next'>[] = [watchPromise]
 
     if (timeout > 0) {
       promises.push(createTimeoutPromise(timeout))
     }
 
-    // Wait for either timeout or signal
-    const result = await Promise.race(promises)
-    completionReason = result
-    core.info(`Completion reason: ${completionReason}`)
+    await Promise.race(promises)
 
-    // Read and process debug signal file if it exists
-    if (result === 'next' && fs.existsSync(debugSignalPath)) {
+    if (fs.existsSync(debugSignalPath)) {
       const content = fs.readFileSync(debugSignalPath, 'utf8')
       const lines = content.split('\n')
 
@@ -88,16 +70,21 @@ export async function run(): Promise<void> {
         }
       }
 
-      // Remove the signal file
       fs.unlinkSync(debugSignalPath)
+    } else {
+      completionReason = 'timeout'
     }
 
-    // Set the output reason
+    core.info(`Completion reason: ${completionReason}`)
     core.setOutput('reason', completionReason)
   } catch (error) {
     if (error instanceof Error) {
       core.setOutput('reason', 'failed')
       core.setFailed(error.message)
+    }
+  } finally {
+    if (watcher) {
+      watcher.close()
     }
   }
 }
