@@ -44,9 +44,9 @@ jobs:
           fi
 
       # Test 2: Normal continuation with background signal
-      - name: Setup background signal
+      - name: Setup next
         run: |
-          (sleep 5 && echo "env=TEST_VAR=test_value" > ${{ env.SIGNAL_PATH }}) &
+          echo "env=TEST_VAR=test_value" > ${{ env.SIGNAL_PATH }}
 
       - name: Test continuation
         uses: ./
@@ -69,7 +69,7 @@ jobs:
       # Test 3: Fail scenario
       - name: Setup fail signal
         run: |
-          (sleep 5 && echo "fail" > ${{ env.SIGNAL_PATH }}) &
+          echo "fail" > ${{ env.SIGNAL_PATH }}
 
       - name: Test fail
         uses: ./
