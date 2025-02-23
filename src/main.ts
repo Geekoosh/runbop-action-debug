@@ -62,6 +62,7 @@ export async function run(): Promise<void> {
         }
       }
     })
+    watcher.unref()
     const promises: Promise<'timeout' | 'next'>[] = [watchPromise]
 
     if (timeout > 0) {
@@ -101,6 +102,7 @@ export async function run(): Promise<void> {
       core.setFailed(error.message)
     }
   } finally {
+    core.info('Unregistering debug signal watcher')
     if (watcher) {
       watcher.close()
     }
