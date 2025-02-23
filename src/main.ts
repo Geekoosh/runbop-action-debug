@@ -7,18 +7,23 @@ async function run(): Promise<void> {
   try {
     // Check for DEBUGGABLE_RUNNER environment variable
     if (!process.env.DEBUGGABLE_RUNNER) {
-      throw new Error('This action requires DEBUGGABLE_RUNNER environment variable to be set')
+      throw new Error(
+        'This action requires DEBUGGABLE_RUNNER environment variable to be set'
+      )
     }
 
     // Get inputs
     const timeout = parseInt(core.getInput('timeout') || '0')
     const customSignalPath = core.getInput('signal-path')
-    const debugSignalPath = customSignalPath || path.join(os.tmpdir(), 'debug_signal')
+    const debugSignalPath =
+      customSignalPath || path.join(os.tmpdir(), 'debug_signal')
     const debugSignalDir = path.dirname(debugSignalPath)
     const debugSignalFile = path.basename(debugSignalPath)
 
     // Print instructions
-    core.info(`To continue, run "gha-debug-continue [--fail] [--env KEY=VAL ...]" on this runner.`)
+    core.info(
+      `To continue, run "gha-debug-continue [--fail] [--env KEY=VAL ...]" on this runner.`
+    )
     core.info(`Debug signal file path: ${debugSignalPath}`)
 
     let timeoutHandle: NodeJS.Timeout | undefined
@@ -68,14 +73,12 @@ async function run(): Promise<void> {
         // Remove the signal file
         fs.unlinkSync(debugSignalPath)
       }
-
     } finally {
       if (timeoutHandle) clearTimeout(timeoutHandle)
     }
 
     // Set the output reason
     core.setOutput('reason', completionReason)
-
   } catch (error) {
     if (error instanceof Error) {
       core.setOutput('reason', 'failed')
