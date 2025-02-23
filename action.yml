@@ -1,0 +1,25 @@
+name: 'Runbop Debug'
+description: 'Pause GitHub Actions workflow for debugging on self-hosted runners'
+author: 'Assaf Kamil'
+
+inputs:
+  timeout:
+    description: 'Timeout in seconds before continuing (optional)'
+    required: false
+    default: '0'
+  signal-path:
+    description: 'Path to the debug signal file (optional)'
+    required: false
+    default: ''
+
+outputs:
+  reason:
+    description: 'Reason for completion: "timeout", "next", or "failed"'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
+
+branding:
+  icon: 'pause'
+  color: 'purple'
