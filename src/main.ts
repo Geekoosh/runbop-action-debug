@@ -5,7 +5,10 @@ import * as os from 'os'
 
 function createTimeoutPromise(timeoutSeconds: number): Promise<'timeout'> {
   return new Promise((resolve) => {
-    setTimeout(() => resolve('timeout'), timeoutSeconds * 1000)
+    setTimeout(() => {
+      core.info(`Timeout reached after ${timeoutSeconds} seconds`)
+      resolve('timeout')
+    }, timeoutSeconds * 1000)
   })
 }
 
@@ -16,6 +19,7 @@ function promisifyWatch(
 ): Promise<'next'> {
   return new Promise((resolve) => {
     const watcher = fs.watch(debugSignalDir, (eventType, filename) => {
+      core.info(`File event: ${eventType}, filename: ${filename}`)
       if (filename === debugSignalFile) {
         if (fs.existsSync(debugSignalPath)) {
           watcher.close()
@@ -63,6 +67,7 @@ export async function run(): Promise<void> {
     // Wait for either timeout or signal
     const result = await Promise.race(promises)
     completionReason = result
+    core.info(`Completion reason: ${completionReason}`)
 
     // Read and process debug signal file if it exists
     if (result === 'next' && fs.existsSync(debugSignalPath)) {
