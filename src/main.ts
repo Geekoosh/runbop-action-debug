@@ -3,12 +3,6 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 
-function createTimeoutPromise(timeoutSeconds: number): Promise<'timeout'> {
-  return new Promise((resolve) => {
-    setTimeout(() => resolve('timeout'), timeoutSeconds * 1000)
-  })
-}
-
 function simulateSignal(
   debugSignalPath: string,
   content: string,
@@ -21,6 +15,8 @@ function simulateSignal(
 
 export async function run(): Promise<void> {
   let watcher: fs.FSWatcher | undefined
+  let timeoutId: NodeJS.Timeout | undefined
+
   try {
     if (!process.env.DEBUGGABLE_RUNNER) {
       throw new Error(
@@ -28,7 +24,7 @@ export async function run(): Promise<void> {
       )
     }
 
-    const timeout = parseInt(core.getInput('timeout') || '0')
+    const timeoutSeconds = parseInt(core.getInput('timeout') || '0')
     const customSignalPath = core.getInput('signal-path')
     const debugSignalPath =
       customSignalPath || path.join(os.tmpdir(), 'debug_signal')
@@ -65,8 +61,16 @@ export async function run(): Promise<void> {
     watcher.unref()
     const promises: Promise<'timeout' | 'next'>[] = [watchPromise]
 
-    if (timeout > 0) {
-      promises.push(createTimeoutPromise(timeout))
+    if (timeoutSeconds > 0) {
+      let timeoutResolve
+      const timeoutPromise = new Promise<'timeout'>((resolveFn) => {
+        timeoutResolve = resolveFn
+      })
+      timeoutId = setTimeout(
+        () => timeoutResolve!('timeout'),
+        timeoutSeconds * 1000
+      )
+      promises.push(timeoutPromise)
     }
 
     await Promise.race(promises)
@@ -105,6 +109,10 @@ export async function run(): Promise<void> {
     core.info('Unregistering debug signal watcher')
     if (watcher) {
       watcher.close()
+    }
+    if (timeoutId) {
+      core.info('Clearing timeout')
+      clearTimeout(timeoutId)
     }
   }
 }
