@@ -11,6 +11,14 @@ inputs:
     description: 'Path to the debug signal file (optional)'
     required: false
     default: ''
+  simulate:
+    description: 'Simulate a debug signal (for testing purposes only)'
+    required: false
+    default: ''
+  simulate-after:
+    description: 'Delay in milliseconds before simulating a debug signal (for testing purposes only)'
+    required: false
+    default: '0'
 
 outputs:
   reason:
