@@ -8,6 +8,7 @@ jobs:
       contents: read
     env:
       DEBUGGABLE_RUNNER: true
+      NODE_ENV: test
       SIGNAL_PATH: /tmp/debug_signal_test_custom
 
     steps:
@@ -16,7 +17,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
 
       - name: Install dependencies
@@ -43,17 +44,14 @@ jobs:
             exit 1
           fi
 
-      # Test 2: Normal continuation with background signal
-      - name: Setup next
-        run: |
-          echo "env=TEST_VAR=test_value" > ${{ env.SIGNAL_PATH }}
-
       - name: Test continuation
         uses: ./
         id: continue-test
         with:
           timeout: 30
           signal-path: ${{ env.SIGNAL_PATH }}
+          simulate: env=TEST_VAR=test_value
+          simulate-after: 1000
 
       - name: Verify continuation
         run: |
@@ -66,11 +64,6 @@ jobs:
             exit 1
           fi
 
-      # Test 3: Fail scenario
-      - name: Setup fail signal
-        run: |
-          echo "fail" > ${{ env.SIGNAL_PATH }}
-
       - name: Test fail
         uses: ./
         id: fail-test
@@ -78,6 +71,8 @@ jobs:
         with:
           timeout: 30
           signal-path: ${{ env.SIGNAL_PATH }}
+          simulate: fail
+          simulate-after: 1000
 
       - name: Verify fail
         run: |

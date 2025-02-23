@@ -9,6 +9,16 @@ function createTimeoutPromise(timeoutSeconds: number): Promise<'timeout'> {
   })
 }
 
+function simulateSignal(
+  debugSignalPath: string,
+  content: string,
+  delayMs: number
+): void {
+  setTimeout(() => {
+    fs.writeFileSync(debugSignalPath, content, 'utf8')
+  }, delayMs)
+}
+
 export async function run(): Promise<void> {
   let watcher: fs.FSWatcher | undefined
   try {
@@ -24,6 +34,14 @@ export async function run(): Promise<void> {
       customSignalPath || path.join(os.tmpdir(), 'debug_signal')
     const debugSignalDir = path.dirname(debugSignalPath)
     const debugSignalFile = path.basename(debugSignalPath)
+
+    // Test-only parameters
+    const simulateContent = core.getInput('simulate')
+    const simulateAfter = parseInt(core.getInput('simulate-after') || '0')
+
+    if (simulateContent && process.env.NODE_ENV === 'test') {
+      simulateSignal(debugSignalPath, simulateContent, simulateAfter)
+    }
 
     core.info(
       `To continue, run "gha-debug-continue [--fail] [--env KEY=VAL ...]" on this runner.`
