@@ -1,13 +1,14 @@
 name: Continuous Integration
 
 on:
-  pull_request:
-    branches: [main]
   push:
-    branches: [main]
+    branches:
+      - main
+  pull_request:
+  merge_group:
 
 jobs:
-  test-build:
+  test-build-and-lint:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -17,7 +18,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
@@ -39,5 +41,88 @@ jobs:
           if [ "$(git diff --ignore-space-at-eol dist/ | wc -l)" -gt "0" ]; then
             echo "Detected uncommitted changes after build. See status below:"
             git diff
+            exit 1
+          fi
+
+  test-action:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      DEBUGGABLE_RUNNER: true
+      NODE_ENV: test
+      SIGNAL_PATH: /tmp/debug_signal_test_custom
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      # Test 1: Timeout scenario
+      - name: Test timeout
+        uses: ./
+        id: timeout-test
+        with:
+          timeout: 5
+          signal-path: ${{ env.SIGNAL_PATH }}
+
+      - name: Verify timeout
+        run: |
+          if [ "${{ steps.timeout-test.outputs.reason }}" != "timeout" ]; then
+            echo "Expected timeout, got ${{ steps.timeout-test.outputs.reason }}"
+            exit 1
+          fi
+
+      - name: Test continuation
+        uses: ./
+        id: continue-test
+        with:
+          timeout: 30
+          signal-path: ${{ env.SIGNAL_PATH }}
+          simulate: env=TEST_VAR=test_value
+          simulate-after: 1000
+
+      - name: Verify continuation
+        run: |
+          if [ "${{ steps.continue-test.outputs.reason }}" != "next" ]; then
+            echo "Expected next, got ${{ steps.continue-test.outputs.reason }}"
+            exit 1
+          fi
+          if [ "$TEST_VAR" != "test_value" ]; then
+            echo "Environment variable not set correctly"
+            exit 1
+          fi
+
+      - name: Test fail
+        uses: ./
+        id: fail-test
+        continue-on-error: true
+        with:
+          timeout: 30
+          signal-path: ${{ env.SIGNAL_PATH }}
+          simulate: fail
+          simulate-after: 1000
+
+      - name: Verify fail
+        run: |
+          if [ "${{ steps.fail-test.outputs.reason }}" != "failed" ]; then
+            echo "Expected failed, got ${{ steps.fail-test.outputs.reason }}"
+            exit 1
+          fi
+          if [ "${{ steps.fail-test.outcome }}" != "failure" ]; then
+            echo "Expected step to fail"
             exit 1
           fi
