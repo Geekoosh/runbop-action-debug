@@ -1,6 +1,6 @@
 # Runbop Debug Action
 
-[![Continuous Integration](https://github.com/Geekoosh/runbop-debug/actions/workflows/ci.yml/badge.svg)](https://github.com/Geekoosh/runbop-debug/actions/workflows/ci.yml)
+[![Continuous Integration](https://github.com/Geekoosh/runbop-debug/workflows/ci.yml/badge.svg)](https://github.com/Geekoosh/runbop-debug/actions/workflows/ci.yml)
 
 A GitHub Action that allows pausing workflows for debugging on self-hosted runners. If you're using [Runbop](https://runbop.com) self-hosted runners service, this action is automatically configured and ready to use - just add it to your workflow to enable interactive debugging sessions.
 
