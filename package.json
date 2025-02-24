@@ -1,5 +1,5 @@
 {
-  "name": "runbop-debug",
+  "name": "runbop-action-debug",
   "version": "1.0.0",
   "description": "GitHub Action for debugging workflows on self-hosted runners",
   "main": "dist/index.js",
